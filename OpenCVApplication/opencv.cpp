@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
-
+ 
 
 using namespace cv;
 
@@ -23,6 +23,11 @@ void aplicarSobel(Mat imagem);
 void aplicarRobinson(Mat imagem);
 void aplicarLaplace(Mat imagem);
 void aplicarCanny(Mat imagem);
+
+double modifiedLaplacian(Mat src);
+double varianceOfLaplacian(Mat src);
+double tenengrad(Mat src, int ksize);
+double normalizedGraylevelVariance(Mat src);
 
 Mat criarKernelRoberts(int tipo);
 Mat criarKernelRobinson(int tipo, bool negativo = false);
@@ -43,15 +48,29 @@ int main(int argc, char** argv)
 	Mat imagem;
 	GaussianBlur(imagemOriginal, imagem, Size(3, 3), 0, 0, BORDER_DEFAULT);
 
-	limiarizacao(imagem, 100);
+	double x = modifiedLaplacian(imagemOriginal);
+	double y = varianceOfLaplacian(imagemOriginal);
+	double z = tenengrad(imagemOriginal, 3);
+	double v = normalizedGraylevelVariance(imagemOriginal);
+
+	printf("%d", x);
+	printf("\n");
+	printf("%d", y);
+	printf("\n");
+	printf("%d", z);
+	printf("\n");
+	printf("%d", v);
+	printf("\n");
+	/*limiarizacao(imagem, 100);
 	aplicarRobinson(imagem);
 	aplicarRoberts(imagem);
 	aplicarSobel(imagem);
 	aplicarLaplace(imagem);
-	aplicarCanny(imagem);
+	aplicarCanny(imagem);*/
 	waitKey(0);
 }
 
+#pragma region Operações com Imagens
 
 void somar(Mat imagem1, Mat imagem2)
 {
@@ -215,15 +234,6 @@ void aplicarRobinson(Mat imagem)
 	max(resultado, resultadoDSN, resultado);
 
 	mostrarImagem("Robinson", resultado);
-
-	//mostrarImagem("Robinson X", resultadoX);
-	//mostrarImagem("Robinson XN", resultadoXN);
-	//mostrarImagem("Robinson Y", resultadoY);
-	//mostrarImagem("Robinson YN", resultadoYN);
-	//mostrarImagem("Robinson DP", resultadoDP);
-	//mostrarImagem("Robinson DPN", resultadoDPN);
-	//mostrarImagem("Robinson DS", resultadoDS);
-	//mostrarImagem("Robinson DSN", resultadoDSN);
 }
 void aplicarLaplace(Mat imagem)
 {
@@ -243,6 +253,67 @@ void aplicarCanny(Mat imagem)
 	mostrarImagem("Canny", resultado);
 }
 
+#pragma endregion
+
+#pragma region Operadores de Foco
+
+//LAPM
+double modifiedLaplacian(cv::Mat src)
+{
+	cv::Mat M = (Mat_<double>(3, 1) << -1, 2, -1);
+	cv::Mat G = cv::getGaussianKernel(3, -1, CV_64F);
+
+	cv::Mat Lx;
+	cv::sepFilter2D(src, Lx, CV_64F, M, G);
+
+	cv::Mat Ly;
+	cv::sepFilter2D(src, Ly, CV_64F, G, M);
+
+	cv::Mat FM = cv::abs(Lx) + cv::abs(Ly);
+
+	double focusMeasure = cv::mean(FM).val[0];
+	return focusMeasure;
+}
+
+//LAPV
+double varianceOfLaplacian(cv::Mat src)
+{
+	cv::Mat lap;
+	cv::Laplacian(src, lap, CV_64F);
+
+	cv::Scalar mu, sigma;
+	cv::meanStdDev(lap, mu, sigma);
+
+	double focusMeasure = sigma.val[0] * sigma.val[0];
+	return focusMeasure;
+}
+
+//TENG
+double tenengrad(Mat src, int ksize)
+{
+	cv::Mat Gx, Gy;
+	cv::Sobel(src, Gx, CV_64F, 1, 0, ksize);
+	cv::Sobel(src, Gy, CV_64F, 0, 1, ksize);
+
+	cv::Mat FM = Gx.mul(Gx) + Gy.mul(Gy);
+
+	double focusMeasure = cv::mean(FM).val[0];
+	return focusMeasure;
+}
+
+//GLVN
+double normalizedGraylevelVariance(Mat src)
+{
+	cv::Scalar mu, sigma;
+	cv::meanStdDev(src, mu, sigma);
+
+	double focusMeasure = (sigma.val[0] * sigma.val[0]) / mu.val[0];
+	return focusMeasure;
+}
+
+#pragma endregion
+
+
 
 
 Mat escala_cinza(Mat imagem, bool mostrar)
@@ -254,26 +325,6 @@ Mat escala_cinza(Mat imagem, bool mostrar)
 		mostrarImagem("Escala Cinza", escala_cinza);
 
 	return escala_cinza;
-	/*imagem.copyTo(escala_cinza);
-
-	for (int i = 0; i < escala_cinza.rows - 1; i++)
-	for (int j = 0; j < escala_cinza.cols - 1; j++)
-	{
-	int r = escala_cinza.at<Vec3b>(i, j)[0];
-	int g = escala_cinza.at<Vec3b>(i, j)[1];
-	int b = escala_cinza.at<Vec3b>(i, j)[2];
-	int tom_cinza = (r * 0.299) + (g * 0.587) + (b * 0.114);
-
-	escala_cinza.at<Vec3b>(i, j)[0] = tom_cinza;
-	escala_cinza.at<Vec3b>(i, j)[1] = tom_cinza;
-	escala_cinza.at<Vec3b>(i, j)[2] = tom_cinza;
-
-	}
-
-	if (mostrar)
-	mostrarImagem("Escala Cinza", escala_cinza);
-
-	return escala_cinza;*/
 }
 void mostrarImagem(char* janela, Mat imagem)
 {
